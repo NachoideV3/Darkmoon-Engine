@@ -1,8 +1,7 @@
-# loading.py
-
 import time
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QPixmap, QPainter, QFont, QColor
 import numpy as np
 from PIL import Image
 
@@ -13,11 +12,38 @@ class LoadScreen(QWidget):
 
     def initUI(self):
         self.setWindowTitle('Darkmoon Engine Loading')
-        self.setGeometry(100, 100, 1280, 720)
+        
+        # Establecer un tamaño más pequeño para el splash screen
+        self.setFixedSize(400, 200)
+        
+        # Eliminar los bordes y la barra de título
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        
+        # Establecer color de fondo
+        self.setStyleSheet("background-color: rgba(0, 0, 0, 150); border: 2px solid white;")
+        
         layout = QVBoxLayout()
+        
+        # Añadir logo si existe
+        # logo_label = QLabel(self)
+        # pixmap = QPixmap('path_to_logo.png') # Agrega tu logo aquí
+        # logo_label.setPixmap(pixmap)
+        # logo_label.setAlignment(Qt.AlignCenter)
+        # layout.addWidget(logo_label)
+
+        # Añadir texto
         self.label = QLabel('Loading Scene, please wait...', self)
+        self.label.setAlignment(Qt.AlignCenter)
+        self.label.setStyleSheet("color: white; font-size: 18px;")
         layout.addWidget(self.label)
+
         self.setLayout(layout)
+        
+        # Centrar la ventana en la pantalla
+        screen_geometry = self.screen().geometry()
+        x = (screen_geometry.width() - self.width()) // 2
+        y = (screen_geometry.height() - self.height()) // 2
+        self.move(x, y)
 
 class RayTracingWorker(QThread):
     update_signal = pyqtSignal()
