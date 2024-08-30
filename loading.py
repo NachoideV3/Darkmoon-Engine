@@ -14,7 +14,7 @@ class LoadScreen(QWidget):
         self.setWindowTitle('Darkmoon Engine Loading')
         
         # Establecer un tamaño más pequeño para el splash screen
-        self.setFixedSize(400, 200)
+        self.setFixedSize(800, 400)
         
         # Eliminar los bordes y la barra de título
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)

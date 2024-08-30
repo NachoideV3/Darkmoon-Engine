@@ -1,20 +1,11 @@
-import sdl2
-import sdl2.ext
-
-def main():
-    sdl2.ext.init()
-    window = sdl2.ext.Window("SDL2 Test", size=(1280, 720))
-    window.show()
-
-    running = True
-    while running:
-        events = sdl2.ext.get_events()
-        for event in events:
-            if event.type == sdl2.SDL_QUIT:
-                running = False
-        window.refresh()
-
-    sdl2.ext.quit()
+import sys
+from main import main  # Asegúrate de que 'main' es el punto de entrada de tu aplicación
 
 if __name__ == "__main__":
+    # Puedes obtener parámetros de la línea de comandos si es necesario
+    if len(sys.argv) > 1:
+        param = sys.argv[1]
+        # Procesa el parámetro aquí si es necesario
+        print(f"Parametro recibido: {param}")
+    # Ejecuta la aplicación principal
     main()
