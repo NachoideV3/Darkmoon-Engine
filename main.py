@@ -35,36 +35,29 @@ class RayTracingWindow(QMainWindow):
         self.width, self.height = 1600, 900
         self.setGeometry(100, 100, self.width, self.height)
 
-        # Configuraciones de la escena
         self.camera_position = (0, 3, 7)
         self.sphere_center = (0, 1, 0)
         self.sphere_radius = 1
 
-        # Posicionar la luz detrás de la cámara y un poco hacia un lado
-        self.light_position = (-3, 5, 9)  # Invertido respecto a la cámara
+        self.light_position = (-3, 5, 9)
         self.light_intensity = 1.0
         self.plane_y = 0
 
-        # Cargar la imagen HDRI
         self.hdri_image = self.load_hdri_image("meadow_2.jpg")
 
-        # Contadores para rayos y tiempo
         self.ray_count = 0
         self.last_time = time.time()
 
-        # QLabel para mostrar la imagen renderizada
         self.label = QLabel(self)
         self.label.setGeometry(0, 0, self.width, self.height)
 
-        # QLabel para mostrar los FPS y la cantidad de rayos
         self.info_label = QLabel(self)
         self.info_label.setStyleSheet("color: white; font-size: 16px; background-color: rgba(0, 0, 0, 100%);")
         self.info_label.setGeometry(10, 10, 300, 30)
 
-        # Temporizador para actualizar la escena
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_scene)
-        self.timer.start(0)  # Actualiza tan rápido como sea posible
+        self.timer.start(0)
 
     def load_hdri_image(self, file_path):
         try:
@@ -170,17 +163,14 @@ class RayTracingWindow(QMainWindow):
         discriminant = b * b - 4 * a * c
 
         if discriminant >= 0:
-            t = (-b - math.sqrt(discriminant)) / (2.0 * a)
-            if 0 < t < 1:
-                return (0.2, 0.2, 0.2)  # Sombra
-        return (1.0, 1.0, 1.0)  # Luz completa
+            return (0.3, 0.3, 0.3)  # Sombra más tenue
+        return (self.light_intensity, self.light_intensity, self.light_intensity)
 
     def compute_lighting(self, hit_point, normal):
-        light_direction = subtract(self.light_position, hit_point)
-        light_direction = normalize(light_direction)
-        ambient = 0.1
-        diffuse = max(dot(normal, light_direction), 0)
-        color = add(multiply((1.0, 1.0, 1.0), ambient + diffuse), (0.2, 0.2, 0.2))
+        light_dir = normalize(subtract(self.light_position, hit_point))
+        diffuse_intensity = max(dot(normal, light_dir), 0.0)
+        ambient_intensity = 0.2
+        color = (diffuse_intensity + ambient_intensity, diffuse_intensity + ambient_intensity, diffuse_intensity + ambient_intensity)
         return color
 
 if __name__ == '__main__':
