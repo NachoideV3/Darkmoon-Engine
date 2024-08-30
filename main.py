@@ -3,9 +3,9 @@ import math
 import time
 import numpy as np
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, qRgb
 from PyQt5.QtCore import Qt, QTimer
-from PIL import Image  # Asegúrate de tener Pillow instalado
+from PIL import Image
 
 def dot(v1, v2):
     return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
@@ -21,6 +21,8 @@ def multiply(v, scalar):
 
 def normalize(v):
     length = math.sqrt(dot(v, v))
+    if length == 0:
+        return (0, 0, 0)
     return (v[0] / length, v[1] / length, v[2] / length)
 
 class RayTracingWindow(QMainWindow):
@@ -34,13 +36,12 @@ class RayTracingWindow(QMainWindow):
         self.setGeometry(100, 100, self.width, self.height)
 
         # Configuraciones de la escena
-        self.camera_position = (0, 0, -1)
-        self.sphere_center = (0, 0, 3)
+        self.camera_position = (0, 3, 7)  # Ajustar la cámara para estar un poco más alejada
+        self.sphere_center = (0, 1, 0)  # Mover la esfera un poco más arriba
         self.sphere_radius = 1
         self.light_position = (5, 5, -10)
         self.light_intensity = 1.0
-        self.sphere_position = (5, 5, -10)
-        self.plane_y = 2  # Altura del plano (piso)
+        self.plane_y = 0  # Altura del plano (piso)
 
         # Cargar la imagen JPG
         self.hdri_image = self.load_hdri_image("symmetrical_garden_02.jpg")
@@ -90,7 +91,7 @@ class RayTracingWindow(QMainWindow):
         u = phi / (2 * math.pi)
         v = theta / math.pi
 
-        v = 1 - v
+        #v = 1 - v
 
         # Convertir a coordenadas de pixel
         x = int(u * self.hdri_image.shape[1])
@@ -111,6 +112,7 @@ class RayTracingWindow(QMainWindow):
 
         # Actualizar QLabel con FPS y cantidad de rayos
         self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count}")
+
     def render_scene(self):
         # Crear una imagen en blanco
         image = QImage(self.width, self.height, QImage.Format_RGB32)
@@ -121,8 +123,8 @@ class RayTracingWindow(QMainWindow):
             for x in range(self.width):
                 # Calcular el rayo de visión
                 px = (x / self.width) * 2 - 1
-                py = (y / self.height) * 2 - 1
-                ray_direction = normalize((px, py, 1))
+                py = 1 - (y / self.height) * 2  # Invertir el eje Y para que la imagen esté orientada correctamente
+                ray_direction = normalize((px, py, -1))  # Asegurarse de que el rayo apunte hacia la escena
 
                 # Calcular la intersección con la esfera
                 oc = subtract(self.camera_position, self.sphere_center)
@@ -154,37 +156,22 @@ class RayTracingWindow(QMainWindow):
                     # Renderizar plano
                     plane_hit_point = add(self.camera_position, multiply(ray_direction, t_plane))
                     color = (0.5, 0.5, 0.5)  # Color del piso
-                    color = tuple(int(c * 255) for c in color)
+                    color = tuple(int(min(max(c * 255, 0), 255)) for c in color)  # Clamping
                     image.setPixel(x, y, qRgb(*color))
                 elif t_sphere < float('inf'):
                     # Renderizar esfera
                     hit_point = add(self.camera_position, multiply(ray_direction, t_sphere))
                     normal = normalize(subtract(hit_point, self.sphere_center))
-                    light_dir = normalize(subtract(self.light_position, hit_point))
-
-                    # Calcular iluminación difusa
-                    diff = max(dot(normal, light_dir), 0) * self.light_intensity
-
-                    # Calcular reflexión de la imagen de fondo
-                    reflection_dir = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
-                    reflection_color = self.sample_hdri(reflection_dir)
-
-                    # Combinar iluminación difusa y reflexión
-                    color = multiply(add(reflection_color, (diff, diff, diff)), 0.5)
-                    color = tuple(int(c * 255) for c in color)
-                    image.setPixel(x, y, qRgb(*color))
+                    reflection_direction = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
+                    reflection_color = self.sample_hdri(reflection_direction)
+                    image.setPixel(x, y, qRgb(*reflection_color))
                 else:
-                    # Usar el JPG como fondo
-                    bg_color = self.sample_hdri(ray_direction)
-                    image.setPixel(x, y, qRgb(*bg_color))
+                    # Fondo
+                    color = self.sample_hdri(ray_direction)  # Usar HDRI para el fondo
+                    image.setPixel(x, y, qRgb(*color))
 
-        pixmap = QPixmap.fromImage(image)
-        self.label.setPixmap(pixmap)
-    
-
-def qRgb(r, g, b):
-    """ Helper function to convert RGB values to the integer representation """
-    return (r << 16) + (g << 8) + b
+        # Actualizar QLabel con la imagen renderizada
+        self.label.setPixmap(QPixmap.fromImage(image))
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
