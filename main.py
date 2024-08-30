@@ -1,5 +1,7 @@
 import sys
 import time
+import os
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
