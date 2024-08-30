@@ -32,7 +32,7 @@ class RayTracingWindow(QMainWindow):
 
     def initUI(self):
         self.setWindowTitle('Darkmoon Engine')
-        self.width, self.height = 1280, 720
+        self.width, self.height = 1600, 900
         self.setGeometry(100, 100, self.width, self.height)
 
         # Configuraciones de la escena
@@ -46,7 +46,7 @@ class RayTracingWindow(QMainWindow):
         self.plane_y = 0
 
         # Cargar la imagen HDRI
-        self.hdri_image = self.load_hdri_image("symmetrical_garden_02.jpg")
+        self.hdri_image = self.load_hdri_image("meadow_2.jpg")
 
         # Contadores para rayos y tiempo
         self.ray_count = 0
@@ -90,7 +90,7 @@ class RayTracingWindow(QMainWindow):
         x = int(u * self.hdri_image.shape[1])
         y = int(v * self.hdri_image.shape[0])
         color = self.hdri_image[y % self.hdri_image.shape[0], x % self.hdri_image.shape[1]]
-        return (int(color[0] * 255), int(color[1] * 255), int(color[2] * 255))
+        return (color[0], color[1], color[2])
 
     def update_scene(self):
         self.render_scene()
@@ -145,11 +145,17 @@ class RayTracingWindow(QMainWindow):
                     color = self.compute_lighting(hit_point, normal)
                     # Aplicar color metálico (rojo) con reflexión
                     metallic_color = (1.0, 0.0, 0.0)  # Rojo metálico
-                    color = multiply(multiply(metallic_color, 0.8), color[0])  # Mezclar color metálico con reflexión
+                    reflection_intensity = 0.5  # Ajustar la intensidad de la reflexión
+                    color = add(multiply(metallic_color, 1 - reflection_intensity), multiply(reflection_color, reflection_intensity))
+                    # Incrementar el brillo de la reflexión
+                    color = multiply(color, 1.2)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
                 else:
                     color = self.sample_hdri(ray_direction)
+                    # Incrementar el brillo de fondo para que contraste más
+                    color = multiply(color, 1.2)
+                    color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
 
         self.label.setPixmap(QPixmap.fromImage(image))
@@ -162,26 +168,23 @@ class RayTracingWindow(QMainWindow):
         b = 2.0 * dot(oc, shadow_ray_direction)
         c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
         discriminant = b * b - 4 * a * c
+
         if discriminant >= 0:
-            t_shadow = (-b - math.sqrt(discriminant)) / (2.0 * a)
-            if t_shadow > 0:
-                return (0.3, 0.3, 0.3)  # Color de sombra
-        return (1.0, 1.0, 1.0)  # Color sin sombra
+            t = (-b - math.sqrt(discriminant)) / (2.0 * a)
+            if 0 < t < 1:
+                return (0.2, 0.2, 0.2)  # Sombra
+        return (1.0, 1.0, 1.0)  # Luz completa
 
     def compute_lighting(self, hit_point, normal):
         light_direction = subtract(self.light_position, hit_point)
         light_direction = normalize(light_direction)
-        diffuse_intensity = max(dot(light_direction, normal), 0)
-        ambient_color = (0.1, 0.1, 0.1)
-        diffuse_color = (1.0, 1.0, 1.0)
-        color = add(multiply(ambient_color, self.light_intensity), multiply(diffuse_color, diffuse_intensity))
+        ambient = 0.1
+        diffuse = max(dot(normal, light_direction), 0)
+        color = add(multiply((1.0, 1.0, 1.0), ambient + diffuse), (0.2, 0.2, 0.2))
         return color
 
-def main():
+if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = RayTracingWindow()
     window.show()
     sys.exit(app.exec_())
-
-if __name__ == '__main__':
-    main()
