@@ -136,17 +136,14 @@ class RayTracingWindow(QMainWindow):
                     reflection_direction = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
                     reflection_color = self.sample_hdri(reflection_direction)
                     color = self.compute_lighting(hit_point, normal)
-                    # Aplicar color metálico (rojo) con reflexión
                     metallic_color = (1.0, 0.0, 0.0)  # Rojo metálico
                     reflection_intensity = 0.5  # Ajustar la intensidad de la reflexión
                     color = add(multiply(metallic_color, 1 - reflection_intensity), multiply(reflection_color, reflection_intensity))
-                    # Incrementar el brillo de la reflexión
                     color = multiply(color, 1.2)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
                 else:
                     color = self.sample_hdri(ray_direction)
-                    # Incrementar el brillo de fondo para que contraste más
                     color = multiply(color, 1.2)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
