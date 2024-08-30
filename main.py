@@ -31,8 +31,8 @@ class RayTracingWindow(QMainWindow):
 
     def setupMainUI(self):
         self.camera_position = (0, 3, 7)
-        self.sphere_center = (0, 1, 0)
-        self.sphere_radius = 1
+        self.sphere_center = (0, 2, 0)
+        self.sphere_radius = 2
         self.light_position = (-3, 5, 9)
         self.light_intensity = 1.0
         self.plane_y = 0
@@ -58,7 +58,7 @@ class RayTracingWindow(QMainWindow):
         self.info_label.setStyleSheet("color: white; font-size: 16px; background-color: rgba(0, 0, 0, 100%);")
         self.info_label.setGeometry(10, 10, 300, 30)
 
-        self.toggle_ray_tracing_button = QPushButton('Toggle Ray Tracing', self)
+        self.toggle_ray_tracing_button = QPushButton('Toggle RT', self)
         self.toggle_ray_tracing_button.setGeometry(self.width - 200, 10, 190, 30)
         self.toggle_ray_tracing_button.clicked.connect(self.toggle_ray_tracing)
 
