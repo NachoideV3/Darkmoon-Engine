@@ -1,35 +1,11 @@
 import sys
 import math
 import time
-import os
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
 from PyQt5.QtGui import QImage, QPixmap, qRgb
-from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
-from PIL import Image
-
-os.environ['QT_QPA_PLATFORM'] = 'xcb'
-
-class LoadScreen(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.initUI()
-
-    def initUI(self):
-        self.setWindowTitle('Darkmoon Engine Loading')
-        self.setGeometry(100, 100, 1280, 720)
-        layout = QVBoxLayout()
-        self.label = QLabel('Loading Scene, please wait...', self)
-        layout.addWidget(self.label)
-        self.setLayout(layout)
-
-class RayTracingWorker(QThread):
-    update_signal = pyqtSignal()
-
-    def run(self):
-        # Simulate a long-running process
-        time.sleep(2)  # Replace this with actual initialization
-        self.update_signal.emit()
+from PyQt5.QtCore import QTimer
+from loading import LoadScreen, RayTracingWorker
 
 class RayTracingWindow(QMainWindow):
     def __init__(self):
@@ -41,7 +17,7 @@ class RayTracingWindow(QMainWindow):
         self.width, self.height = 1600, 900
         self.setGeometry(100, 100, self.width, self.height)
 
-        # Initialize the screen and load worker
+        # Inicializa la pantalla de carga y el trabajador
         self.load_screen = LoadScreen()
         self.load_screen.show()
 
@@ -61,7 +37,7 @@ class RayTracingWindow(QMainWindow):
         self.light_position = (-3, 5, 9)
         self.light_intensity = 1.0
         self.plane_y = 0
-        self.hdri_image = self.load_hdri_image("meadow_2.jpg")
+        self.hdri_image = self.worker.hdri_image
         self.ray_count = 0
         self.last_time = time.time()
 
@@ -75,21 +51,6 @@ class RayTracingWindow(QMainWindow):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_scene)
         self.timer.start(0)
-
-    def load_hdri_image(self, file_path):
-        try:
-            with Image.open(file_path) as img:
-                img = img.convert('RGB')
-                hdri_image = np.array(img, dtype=np.float32) / 255.0
-            return hdri_image
-        except Exception as e:
-            print(f"Error loading image: {e}")
-            hdri_width, hdri_height = 512, 256
-            hdri_image = np.zeros((hdri_height, hdri_width, 3), dtype=np.float32)
-            for y in range(hdri_height):
-                for x in range(hdri_width):
-                    hdri_image[y, x] = (x / hdri_width, y / hdri_height, 0.5)
-            return hdri_image
 
     def sample_hdri(self, direction):
         theta = math.acos(direction[1])
@@ -177,57 +138,36 @@ class RayTracingWindow(QMainWindow):
         c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
         discriminant = b * b - 4 * a * c
 
-        shadow_intensity = 1.0  # Inicialmente no hay sombra
-
+        shadow_intensity = 1.0  # Luz sin sombra
         if discriminant >= 0:
-            t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
-            if t_sphere > 0:
-                shadow_intensity = 0.3  # Ajusta la intensidad de la sombra según la distancia
+            shadow_intensity = 0.3  # Ajusta la intensidad de la sombra si se detecta una intersección
 
-        indirect_light = 0.2  # Ajusta según sea necesario
-        shadow_intensity = shadow_intensity * (1 - indirect_light)
-        
         return (shadow_intensity, shadow_intensity, shadow_intensity)
 
     def compute_lighting(self, hit_point, normal):
-        light_direction = normalize(subtract(self.light_position, hit_point))
-        ambient_intensity = 0.1
-        diffuse_intensity = max(dot(normal, light_direction), 0.0)
-        reflection_direction = subtract(light_direction, multiply(normal, 2 * dot(light_direction, normal)))
-        specular_intensity = max(dot(reflection_direction, normalize(subtract(self.camera_position, hit_point))), 0.0)
-        specular_intensity = specular_intensity ** 16
-        
-        shadow_intensity = self.compute_shadow(hit_point)[0]
-
-        color = multiply((ambient_intensity + shadow_intensity * diffuse_intensity + specular_intensity), (1.0, 1.0, 1.0))
+        light_direction = subtract(self.light_position, hit_point)
+        light_direction = normalize(light_direction)
+        diff = max(dot(normal, light_direction), 0)
+        color = (diff * self.light_intensity, diff * self.light_intensity, diff * self.light_intensity)
         return color
 
-# Helper functions
-def subtract(a, b):
-    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
-
-def add(a, b):
-    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
-
-def multiply(a, b):
-    if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
-        return (a[0] * b[0], a[1] * b[1], a[2] * b[2])
-    elif isinstance(a, (tuple, list)) and isinstance(b, (int, float)):
-        return (a[0] * b, a[1] * b, a[2] * b)
-    elif isinstance(a, (int, float)) and isinstance(b, (tuple, list)):
-        return (a * b[0], a * b[1], a * b[2])
-    else:
-        raise ValueError("Arguments must be either both tuples/lists or one tuple/list and one number")
-
-
-def dot(a, b):
-    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
 def normalize(v):
-    length = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
-    return (v[0] / length, v[1] / length, v[2] / length)
+    norm = math.sqrt(sum(i ** 2 for i in v))
+    return tuple(i / norm for i in v)
+
+def subtract(v1, v2):
+    return tuple(v1[i] - v2[i] for i in range(3))
+
+def add(v1, v2):
+    return tuple(v1[i] + v2[i] for i in range(3))
+
+def multiply(v, scalar):
+    return tuple(i * scalar for i in v)
+
+def dot(v1, v2):
+    return sum(v1[i] * v2[i] for i in range(3))
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    ex = RayTracingWindow()
+    window = RayTracingWindow()
     sys.exit(app.exec_())
