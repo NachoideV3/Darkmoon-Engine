@@ -69,8 +69,8 @@ class RayTracingWindow(QMainWindow):
     def toggle_ray_tracing(self):
         # Alterna entre ray tracing y renderizado simple
         self.renderer.use_ray_tracing = not self.renderer.use_ray_tracing
-        state = "enabled" if self.renderer.use_ray_tracing else "disabled"
-        self.info_label.setText(f"Ray Tracing {state} | FPS: {self.info_label.text().split('|')[1]}")
+        state = "ON" if self.renderer.use_ray_tracing else "OFF"
+        self.info_label.setText(f"RT {state} | FPS: {self.info_label.text().split('|')[1]}")
 
     def update_scene(self):
         image, self.ray_count = self.renderer.render_scene(self.width, self.height)
@@ -80,7 +80,7 @@ class RayTracingWindow(QMainWindow):
         elapsed_time = current_time - self.last_time
         self.last_time = current_time
         fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
-        self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count} | Ray Tracing {'enabled' if self.renderer.use_ray_tracing else 'disabled'}")
+        self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count} | RT {'ON' if self.renderer.use_ray_tracing else 'OFF'}")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
