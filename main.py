@@ -128,7 +128,7 @@ class RayTracingWindow(QMainWindow):
                     plane_hit_point = add(self.camera_position, multiply(ray_direction, t_plane))
                     shadow_color = self.compute_shadow(plane_hit_point)
                     color = (0.5, 0.5, 0.5)  # Color del piso
-                    color = tuple(int(min(max(c * 255, 0), 255)) for c in shadow_color)
+                    color = tuple(int(min(max(c * 255, 0), 255)) for c in add(shadow_color, color))
                     image.setPixel(x, y, qRgb(*color))
                 elif t_sphere < float('inf'):
                     hit_point = add(self.camera_position, multiply(ray_direction, t_sphere))
@@ -150,25 +150,59 @@ class RayTracingWindow(QMainWindow):
 
         self.label.setPixmap(QPixmap.fromImage(image))
 
+
     def compute_shadow(self, hit_point):
         shadow_ray_direction = subtract(self.light_position, hit_point)
         shadow_ray_direction = normalize(shadow_ray_direction)
+        
         oc = subtract(hit_point, self.sphere_center)
         a = dot(shadow_ray_direction, shadow_ray_direction)
         b = 2.0 * dot(oc, shadow_ray_direction)
         c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
         discriminant = b * b - 4 * a * c
 
+        shadow_intensity = 1.0  # Inicialmente no hay sombra
+
         if discriminant >= 0:
-            return (0.3, 0.3, 0.3)  # Sombra más tenue
-        return (self.light_intensity, self.light_intensity, self.light_intensity)
+            # Hay una intersección con la esfera
+            t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
+            if t_sphere > 0:
+                shadow_intensity = 0.3  # Ajusta la intensidad de la sombra según la distancia
+
+        # Suavizar la sombra con un factor de luz indirecta
+        indirect_light = 0.2  # Ajusta según sea necesario
+        shadow_intensity = shadow_intensity * (1 - indirect_light)
+        
+        return (shadow_intensity, shadow_intensity, shadow_intensity)
+
 
     def compute_lighting(self, hit_point, normal):
-        light_dir = normalize(subtract(self.light_position, hit_point))
-        diffuse_intensity = max(dot(normal, light_dir), 0.0)
-        ambient_intensity = 0.2
-        color = (diffuse_intensity + ambient_intensity, diffuse_intensity + ambient_intensity, diffuse_intensity + ambient_intensity)
+        light_direction = normalize(subtract(self.light_position, hit_point))
+        ambient_color = (0.2, 0.2, 0.2)
+        diffuse_color = (1.0, 1.0, 1.0)
+        specular_color = (1.0, 1.0, 1.0)
+        ambient_intensity = 0.1
+        diffuse_intensity = max(dot(normal, light_direction), 0)
+        
+        # Calcular la dirección de reflexión
+        reflection_direction = subtract(light_direction, multiply(normal, 2 * dot(light_direction, normal)))
+        reflection_direction = normalize(reflection_direction)
+
+        # Calcular la intensidad especular
+        view_direction = normalize(subtract(self.camera_position, hit_point))
+        specular_intensity = max(dot(reflection_direction, view_direction), 0)
+        specular_intensity = pow(specular_intensity, 32)  # Ajuste del brillo especular
+
+        # Reflexión difusa: Proyectar luz en dirección opuesta a la luz
+        # Para simplificar, usaremos un modelo básico de "luz indirecta" que simula un rebote global
+        indirect_light_intensity = 0.2 * diffuse_intensity
+
+        # Combinar todas las contribuciones
+        color = add(multiply(ambient_color, ambient_intensity), multiply(diffuse_color, diffuse_intensity))
+        color = add(color, multiply(specular_color, specular_intensity))
+        color = add(color, (indirect_light_intensity, indirect_light_intensity, indirect_light_intensity))
         return color
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
