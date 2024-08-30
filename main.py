@@ -1,29 +1,35 @@
 import sys
 import math
 import time
+import os
 import numpy as np
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QVBoxLayout
 from PyQt5.QtGui import QImage, QPixmap, qRgb
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PIL import Image
 
-def dot(v1, v2):
-    return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
 
-def subtract(v1, v2):
-    return (v1[0] - v2[0], v1[1] - v2[1], v1[2] - v2[2])
+class LoadScreen(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
 
-def add(v1, v2):
-    return (v1[0] + v2[0], v1[1] + v2[1], v1[2] + v2[2])
+    def initUI(self):
+        self.setWindowTitle('Darkmoon Engine Loading')
+        self.setGeometry(100, 100, 1280, 720)
+        layout = QVBoxLayout()
+        self.label = QLabel('Loading Scene, please wait...', self)
+        layout.addWidget(self.label)
+        self.setLayout(layout)
 
-def multiply(v, scalar):
-    return (v[0] * scalar, v[1] * scalar, v[2] * scalar)
+class RayTracingWorker(QThread):
+    update_signal = pyqtSignal()
 
-def normalize(v):
-    length = math.sqrt(dot(v, v))
-    if length == 0:
-        return (0, 0, 0)
-    return (v[0] / length, v[1] / length, v[2] / length)
+    def run(self):
+        # Simulate a long-running process
+        time.sleep(2)  # Replace this with actual initialization
+        self.update_signal.emit()
 
 class RayTracingWindow(QMainWindow):
     def __init__(self):
@@ -35,16 +41,27 @@ class RayTracingWindow(QMainWindow):
         self.width, self.height = 1600, 900
         self.setGeometry(100, 100, self.width, self.height)
 
+        # Initialize the screen and load worker
+        self.load_screen = LoadScreen()
+        self.load_screen.show()
+
+        self.worker = RayTracingWorker()
+        self.worker.update_signal.connect(self.on_loading_complete)
+        self.worker.start()
+
+    def on_loading_complete(self):
+        self.load_screen.close()
+        self.setupMainUI()
+        self.show()
+
+    def setupMainUI(self):
         self.camera_position = (0, 3, 7)
         self.sphere_center = (0, 1, 0)
         self.sphere_radius = 1
-
         self.light_position = (-3, 5, 9)
         self.light_intensity = 1.0
         self.plane_y = 0
-
         self.hdri_image = self.load_hdri_image("meadow_2.jpg")
-
         self.ray_count = 0
         self.last_time = time.time()
 
@@ -150,7 +167,6 @@ class RayTracingWindow(QMainWindow):
 
         self.label.setPixmap(QPixmap.fromImage(image))
 
-
     def compute_shadow(self, hit_point):
         shadow_ray_direction = subtract(self.light_position, hit_point)
         shadow_ray_direction = normalize(shadow_ray_direction)
@@ -164,48 +180,54 @@ class RayTracingWindow(QMainWindow):
         shadow_intensity = 1.0  # Inicialmente no hay sombra
 
         if discriminant >= 0:
-            # Hay una intersección con la esfera
             t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
             if t_sphere > 0:
                 shadow_intensity = 0.3  # Ajusta la intensidad de la sombra según la distancia
 
-        # Suavizar la sombra con un factor de luz indirecta
         indirect_light = 0.2  # Ajusta según sea necesario
         shadow_intensity = shadow_intensity * (1 - indirect_light)
         
         return (shadow_intensity, shadow_intensity, shadow_intensity)
 
-
     def compute_lighting(self, hit_point, normal):
         light_direction = normalize(subtract(self.light_position, hit_point))
-        ambient_color = (0.2, 0.2, 0.2)
-        diffuse_color = (1.0, 1.0, 1.0)
-        specular_color = (1.0, 1.0, 1.0)
         ambient_intensity = 0.1
-        diffuse_intensity = max(dot(normal, light_direction), 0)
-        
-        # Calcular la dirección de reflexión
+        diffuse_intensity = max(dot(normal, light_direction), 0.0)
         reflection_direction = subtract(light_direction, multiply(normal, 2 * dot(light_direction, normal)))
-        reflection_direction = normalize(reflection_direction)
+        specular_intensity = max(dot(reflection_direction, normalize(subtract(self.camera_position, hit_point))), 0.0)
+        specular_intensity = specular_intensity ** 16
+        
+        shadow_intensity = self.compute_shadow(hit_point)[0]
 
-        # Calcular la intensidad especular
-        view_direction = normalize(subtract(self.camera_position, hit_point))
-        specular_intensity = max(dot(reflection_direction, view_direction), 0)
-        specular_intensity = pow(specular_intensity, 32)  # Ajuste del brillo especular
-
-        # Reflexión difusa: Proyectar luz en dirección opuesta a la luz
-        # Para simplificar, usaremos un modelo básico de "luz indirecta" que simula un rebote global
-        indirect_light_intensity = 0.2 * diffuse_intensity
-
-        # Combinar todas las contribuciones
-        color = add(multiply(ambient_color, ambient_intensity), multiply(diffuse_color, diffuse_intensity))
-        color = add(color, multiply(specular_color, specular_intensity))
-        color = add(color, (indirect_light_intensity, indirect_light_intensity, indirect_light_intensity))
+        color = multiply((ambient_intensity + shadow_intensity * diffuse_intensity + specular_intensity), (1.0, 1.0, 1.0))
         return color
 
+# Helper functions
+def subtract(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+def add(a, b):
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+def multiply(a, b):
+    if isinstance(a, (tuple, list)) and isinstance(b, (tuple, list)):
+        return (a[0] * b[0], a[1] * b[1], a[2] * b[2])
+    elif isinstance(a, (tuple, list)) and isinstance(b, (int, float)):
+        return (a[0] * b, a[1] * b, a[2] * b)
+    elif isinstance(a, (int, float)) and isinstance(b, (tuple, list)):
+        return (a * b[0], a * b[1], a * b[2])
+    else:
+        raise ValueError("Arguments must be either both tuples/lists or one tuple/list and one number")
+
+
+def dot(a, b):
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+def normalize(v):
+    length = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2)
+    return (v[0] / length, v[1] / length, v[2] / length)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = RayTracingWindow()
-    window.show()
+    ex = RayTracingWindow()
     sys.exit(app.exec_())
