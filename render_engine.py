@@ -19,7 +19,7 @@ def dot(v1, v2):
     return sum(v1[i] * v2[i] for i in range(3))
 
 class Renderer:
-    def __init__(self, camera_position, sphere_center, sphere_radius, light_position, light_intensity, plane_y, hdri_image):
+    def __init__(self, camera_position, sphere_center, sphere_radius, light_position, light_intensity, plane_y, hdri_image, use_ray_tracing=True):
         self.camera_position = camera_position
         self.sphere_center = sphere_center
         self.sphere_radius = sphere_radius
@@ -27,6 +27,11 @@ class Renderer:
         self.light_intensity = light_intensity
         self.plane_y = plane_y
         self.hdri_image = hdri_image
+        self.use_ray_tracing = use_ray_tracing
+
+        # Pre-calculate plane normal and plane distance
+        self.plane_normal = (0, 1, 0)
+        self.plane_d = -self.plane_y
 
     def sample_hdri(self, direction):
         theta = math.acos(direction[1])
@@ -72,49 +77,77 @@ class Renderer:
                 py = 1 - (y / height) * 2
                 ray_direction = normalize((px, py, -1))
 
-                oc = subtract(self.camera_position, self.sphere_center)
-                a = dot(ray_direction, ray_direction)
-                b = 2.0 * dot(oc, ray_direction)
-                c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
-                discriminant = b * b - 4 * a * c
+                if not self.use_ray_tracing:
+                    oc = subtract(self.camera_position, self.sphere_center)
+                    a = dot(ray_direction, ray_direction)
+                    b = 2.0 * dot(oc, ray_direction)
+                    c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
+                    discriminant = b * b - 4 * a * c
 
-                plane_normal = (0, 1, 0)
-                plane_d = -self.plane_y
-                denom = dot(ray_direction, plane_normal)
+                    denom = dot(ray_direction, self.plane_normal)
 
-                ray_count += 1
+                    if discriminant >= 0:
+                        t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
+                        if t_sphere > 0:
+                            color = (1.0, 0.0, 0.0)  # Rojo sólido para la esfera
+                            color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
+                            image.setPixel(x, y, qRgb(*color))
+                            continue
 
-                t_sphere = float('inf')
-                t_plane = float('inf')
+                    if abs(denom) > 1e-6:
+                        t_plane = -(dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
+                        if t_plane > 0:
+                            color = (0.5, 0.5, 0.5)  # Gris sólido para el piso
+                            color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
+                            image.setPixel(x, y, qRgb(*color))
+                            continue
 
-                if discriminant >= 0:
-                    t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
-
-                if abs(denom) > 1e-6:
-                    t_plane = -(dot(self.camera_position, plane_normal) + plane_d) / denom
-
-                if t_plane > 0 and (t_plane < t_sphere or t_sphere == float('inf')):
-                    plane_hit_point = add(self.camera_position, multiply(ray_direction, t_plane))
-                    shadow_color = self.compute_shadow(plane_hit_point)
-                    color = (0.5, 0.5, 0.5)  # Color del piso
-                    color = tuple(int(min(max(c * 255, 0), 255)) for c in add(shadow_color, color))
-                    image.setPixel(x, y, qRgb(*color))
-                elif t_sphere < float('inf'):
-                    hit_point = add(self.camera_position, multiply(ray_direction, t_sphere))
-                    normal = normalize(subtract(hit_point, self.sphere_center))
-                    reflection_direction = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
-                    reflection_color = self.sample_hdri(reflection_direction)
-                    color = self.compute_lighting(hit_point, normal)
-                    metallic_color = (1.0, 0.0, 0.0)  # Rojo metálico
-                    reflection_intensity = 0.5  # Ajustar la intensidad de la reflexión
-                    color = add(multiply(metallic_color, 1 - reflection_intensity), multiply(reflection_color, reflection_intensity))
-                    color = multiply(color, 1.2)
-                    color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
-                    image.setPixel(x, y, qRgb(*color))
-                else:
                     color = self.sample_hdri(ray_direction)
-                    color = multiply(color, 1.2)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
+
+                else:
+                    oc = subtract(self.camera_position, self.sphere_center)
+                    a = dot(ray_direction, ray_direction)
+                    b = 2.0 * dot(oc, ray_direction)
+                    c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
+                    discriminant = b * b - 4 * a * c
+
+                    denom = dot(ray_direction, self.plane_normal)
+
+                    ray_count += 1
+
+                    t_sphere = float('inf')
+                    t_plane = float('inf')
+
+                    if discriminant >= 0:
+                        t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
+
+                    if abs(denom) > 1e-6:
+                        t_plane = -(dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
+
+                    if t_plane > 0 and (t_plane < t_sphere or t_sphere == float('inf')):
+                        plane_hit_point = add(self.camera_position, multiply(ray_direction, t_plane))
+                        shadow_color = self.compute_shadow(plane_hit_point)
+                        color = (0.5, 0.5, 0.5)  # Color del piso
+                        color = tuple(int(min(max(c * 255, 0), 255)) for c in add(shadow_color, color))
+                        image.setPixel(x, y, qRgb(*color))
+                    elif t_sphere < float('inf'):
+                        hit_point = add(self.camera_position, multiply(ray_direction, t_sphere))
+                        normal = normalize(subtract(hit_point, self.sphere_center))
+                        reflection_direction = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
+                        reflection_color = self.sample_hdri(reflection_direction)
+                        color = self.compute_lighting(hit_point, normal)
+                        metallic_color = (1.0, 0.0, 0.0)  # Rojo metálico
+                        reflection_intensity = 0.5  # Ajustar la intensidad de la reflexión
+                        color = add(multiply(metallic_color, 1 - reflection_intensity), multiply(reflection_color, reflection_intensity))
+                        color = multiply(color, 1.2)
+                        color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
+                        image.setPixel(x, y, qRgb(*color))
+                    else:
+                        color = self.sample_hdri(ray_direction)
+                        color = multiply(color, 1.2)
+                        color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
+                        image.setPixel(x, y, qRgb(*color))
 
         return image, ray_count

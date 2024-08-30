@@ -1,6 +1,6 @@
 import sys
 import time
-from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
 from loading import LoadScreen, RayTracingWorker
@@ -45,7 +45,8 @@ class RayTracingWindow(QMainWindow):
             self.light_position,
             self.light_intensity,
             self.plane_y,
-            self.hdri_image
+            self.hdri_image,
+            use_ray_tracing=False
         )
         self.ray_count = 0
         self.last_time = time.time()
@@ -57,9 +58,19 @@ class RayTracingWindow(QMainWindow):
         self.info_label.setStyleSheet("color: white; font-size: 16px; background-color: rgba(0, 0, 0, 100%);")
         self.info_label.setGeometry(10, 10, 300, 30)
 
+        self.toggle_ray_tracing_button = QPushButton('Toggle Ray Tracing', self)
+        self.toggle_ray_tracing_button.setGeometry(self.width - 200, 10, 190, 30)
+        self.toggle_ray_tracing_button.clicked.connect(self.toggle_ray_tracing)
+
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_scene)
         self.timer.start(0)
+
+    def toggle_ray_tracing(self):
+        # Alterna entre ray tracing y renderizado simple
+        self.renderer.use_ray_tracing = not self.renderer.use_ray_tracing
+        state = "enabled" if self.renderer.use_ray_tracing else "disabled"
+        self.info_label.setText(f"Ray Tracing {state} | FPS: {self.info_label.text().split('|')[1]}")
 
     def update_scene(self):
         image, self.ray_count = self.renderer.render_scene(self.width, self.height)
@@ -69,7 +80,7 @@ class RayTracingWindow(QMainWindow):
         elapsed_time = current_time - self.last_time
         self.last_time = current_time
         fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
-        self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count}")
+        self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count} | Ray Tracing {'enabled' if self.renderer.use_ray_tracing else 'disabled'}")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
