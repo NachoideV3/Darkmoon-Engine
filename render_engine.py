@@ -14,7 +14,6 @@ class Renderer:
         self.hdri_image = hdri_image
         self.use_ray_tracing = use_ray_tracing
 
-        # Pre-calculate plane normal and plane distance
         self.plane_normal = glm.vec3(0, 1, 0)
         self.plane_d = -self.plane_y
 
@@ -68,9 +67,9 @@ class Renderer:
         c = glm.dot(oc, oc) - self.sphere_radius * self.sphere_radius
         discriminant = b * b - 4 * a * c
 
-        shadow_intensity = 1.0  # Light with no shadow
+        shadow_intensity = 1.0
         if discriminant >= 0:
-            shadow_intensity = 0.3  # Adjust shadow intensity if an intersection is detected
+            shadow_intensity = 0.3
 
         return (shadow_intensity, shadow_intensity, shadow_intensity)
 
@@ -106,7 +105,7 @@ class Renderer:
                     if discriminant >= 0:
                         t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
                         if t_sphere > 0:
-                            color = glm.vec3(1.0, 0.0, 0.0)  # Solid red for the sphere
+                            color = glm.vec3(1.0, 0.0, 0.0)
                             color = glm.clamp(color, 0.0, 1.0)
                             color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                             image.setPixel(x, y, qRgb(*color))
@@ -115,7 +114,7 @@ class Renderer:
                     if abs(denom) > 1e-6:
                         t_plane = -(glm.dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
                         if t_plane > 0:
-                            color = glm.vec3(0.5, 0.5, 0.5)  # Solid gray for the plane
+                            color = glm.vec3(0.5, 0.5, 0.5)
                             color = glm.clamp(color, 0.0, 1.0)
                             color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                             image.setPixel(x, y, qRgb(*color))
@@ -150,7 +149,7 @@ class Renderer:
                     if t_plane > 0 and (t_plane < t_sphere or t_sphere == float('inf')):
                         plane_hit_point = self.camera_position + ray_direction * t_plane
                         shadow_color = self.compute_shadow(plane_hit_point)
-                        color = glm.vec3(0.5, 0.5, 0.5)  # Plane color
+                        color = glm.vec3(0.5, 0.5, 0.5)
                         shadow_color = glm.vec3(*shadow_color)
                         color = glm.clamp(color + shadow_color, 0.0, 1.0)
                         color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
@@ -158,11 +157,11 @@ class Renderer:
                     elif t_sphere < float('inf'):
                         hit_point = self.camera_position + ray_direction * t_sphere
                         normal = glm.normalize(hit_point - self.sphere_center)
-                        reflection_direction = glm.normalize(ray_direction - normal * 2 * glm.dot(ray_direction, normal))
+                        reflection_direction = glm.normalize(ray_direction - 2 * glm.dot(ray_direction, normal) * normal)
                         reflection_color = self.sample_hdri(reflection_direction)
                         color = self.compute_lighting(hit_point, normal)
-                        metallic_color = glm.vec3(1.0, 0.0, 0.0)  # Metallic red
-                        reflection_intensity = 0.5  # Adjust reflection intensity
+                        metallic_color = glm.vec3(1.0, 0.0, 0.0)
+                        reflection_intensity = 0.5
                         color = (1 - reflection_intensity) * metallic_color + reflection_intensity * glm.vec3(*reflection_color)
                         color *= 1.2
                         color = glm.clamp(color, 0.0, 1.0)
