@@ -5,8 +5,9 @@ os.environ['QT_QPA_PLATFORM'] = 'xcb'
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBoxLayout, QWidget
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
-from loading import LoadScreen, RayTracingWorker
+from loading import LoadScreen
 from render_engine import Renderer  # Importar Renderer
+from ImageLoader import ImageLoader
 
 class RayTracingWindow(QMainWindow):
     def __init__(self):
@@ -18,18 +19,8 @@ class RayTracingWindow(QMainWindow):
         self.width, self.height = 1600, 900
         self.setGeometry(100, 100, self.width, self.height)
 
-        # Inicializa la pantalla de carga y el trabajador
-        self.load_screen = LoadScreen()
-        self.load_screen.show()
-
-        self.worker = RayTracingWorker()
-        self.worker.update_signal.connect(self.on_loading_complete)
-        self.worker.start()
-
-    def on_loading_complete(self):
-        self.load_screen.close()
-        self.setupMainUI()
-        self.show()
+        self.load_screen = LoadScreen(self)
+        self.load_screen.loading()
 
     def setupMainUI(self):
         self.camera_position = (0, 3, 7)
@@ -38,7 +29,7 @@ class RayTracingWindow(QMainWindow):
         self.light_position = (-3, 5, 9)
         self.light_intensity = 1.0
         self.plane_y = 0
-        self.hdri_image = self.worker.hdri_image
+        self.hdri_image = ImageLoader.load_image("meadow_2.jpg")
 
         self.renderer = Renderer(
             self.camera_position,
@@ -70,6 +61,7 @@ class RayTracingWindow(QMainWindow):
 
     def toggle_ray_tracing(self):
         # Alterna entre ray tracing y renderizado simple
+        #self.load_screen.show()
         self.renderer.use_ray_tracing = not self.renderer.use_ray_tracing
         state = "ON" if self.renderer.use_ray_tracing else "OFF"
         self.info_label.setText(f"RT {state} | FPS: {self.info_label.text().split('|')[1]}")
@@ -83,6 +75,11 @@ class RayTracingWindow(QMainWindow):
         self.last_time = current_time
         fps = 1.0 / elapsed_time if elapsed_time > 0 else 0
         self.info_label.setText(f"FPS: {fps:.2f} | Rays: {self.ray_count} | RT {'ON' if self.renderer.use_ray_tracing else 'OFF'}")
+        self.current_fps = fps
+
+    def get_fps(self):
+        return getattr(self, 'current_fps', 0)
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
