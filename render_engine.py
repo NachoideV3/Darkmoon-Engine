@@ -18,6 +18,35 @@ class Renderer:
         self.plane_normal = glm.vec3(0, 1, 0)
         self.plane_d = -self.plane_y
 
+        self.last_camera_position = None
+        self.last_sphere_center = None
+        self.last_sphere_radius = None
+        self.last_light_position = None
+        self.last_light_intensity = None
+        self.last_plane_y = None
+        self.last_hdri_image = None
+        self.last_use_ray_tracing = None
+
+    def scene_has_changed(self):
+        return (self.camera_position != self.last_camera_position or
+                self.sphere_center != self.last_sphere_center or
+                self.sphere_radius != self.last_sphere_radius or
+                self.light_position != self.last_light_position or
+                self.light_intensity != self.last_light_intensity or
+                self.plane_y != self.last_plane_y or
+                self.hdri_image is not self.last_hdri_image or
+                self.use_ray_tracing != self.last_use_ray_tracing)
+
+    def update_last_parameters(self):
+        self.last_camera_position = self.camera_position
+        self.last_sphere_center = self.sphere_center
+        self.last_sphere_radius = self.sphere_radius
+        self.last_light_position = self.light_position
+        self.last_light_intensity = self.light_intensity
+        self.last_plane_y = self.plane_y
+        self.last_hdri_image = self.hdri_image
+        self.last_use_ray_tracing = self.use_ray_tracing
+
     def sample_hdri(self, direction):
         direction = glm.normalize(direction)
         theta = math.acos(direction.y)
@@ -52,6 +81,9 @@ class Renderer:
         return color
 
     def render_scene(self, width, height):
+        if not self.scene_has_changed():
+            return self.last_image, self.ray_count
+
         image = QImage(width, height, QImage.Format_RGB32)
         ray_count = 0
 
@@ -143,4 +175,7 @@ class Renderer:
                         color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                         image.setPixel(x, y, qRgb(*color))
 
+        self.last_image = image
+        self.ray_count = ray_count
+        self.update_last_parameters()
         return image, ray_count
