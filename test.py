@@ -1,21 +1,25 @@
-import pyopencl as cl
+import numpy as np
+from numba import cuda
 
-def list_opencl_devices():
-    platforms = cl.get_platforms()
-    if not platforms:
-        print("No OpenCL platforms found.")
-        return
+@cuda.jit
+def add_arrays(a, b, c):
+    idx = cuda.threadIdx.x
+    if idx < a.size:
+        c[idx] = a[idx] + b[idx]
 
-    for platform in platforms:
-        print(f"Platform: {platform.name}")
-        devices = platform.get_devices(cl.device_type.ALL)
-        if not devices:
-            print(f"  No devices found for platform {platform.name}.")
-        for device in devices:
-            print(f"  Device: {device.name}")
-            print(f"    Type: {cl.device_type.to_string(device.type)}")
-            print(f"    Compute Units: {device.max_compute_units}")
-            print(f"    Global Memory Size: {device.global_mem_size / (1024**2)} MB")
+# Define arrays
+a = np.array([1, 2, 3, 4, 5], dtype=np.float32)
+b = np.array([10, 20, 30, 40, 50], dtype=np.float32)
+c = np.empty_like(a)
 
-if __name__ == "__main__":
-    list_opencl_devices()
+# Transfer arrays to device
+d_a = cuda.to_device(a)
+d_b = cuda.to_device(b)
+d_c = cuda.to_device(c)
+
+# Launch kernel
+add_arrays[1, a.size](d_a, d_b, d_c)
+
+# Copy result back to host
+d_c.copy_to_host(c)
+print(c)

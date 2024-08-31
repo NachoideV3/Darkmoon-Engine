@@ -1,69 +1,53 @@
 import math
+import glm
 import numpy as np
 from PyQt5.QtGui import QImage, qRgb
 
-def normalize(v):
-    norm = math.sqrt(sum(i ** 2 for i in v))
-    return tuple(i / norm for i in v)
-
-def subtract(v1, v2):
-    return tuple(v1[i] - v2[i] for i in range(3))
-
-def add(v1, v2):
-    return tuple(v1[i] + v2[i] for i in range(3))
-
-def multiply(v, scalar):
-    return tuple(i * scalar for i in v)
-
-def dot(v1, v2):
-    return sum(v1[i] * v2[i] for i in range(3))
-
 class Renderer:
     def __init__(self, camera_position, sphere_center, sphere_radius, light_position, light_intensity, plane_y, hdri_image, use_ray_tracing=True):
-        self.camera_position = camera_position
-        self.sphere_center = sphere_center
+        self.camera_position = glm.vec3(*camera_position)
+        self.sphere_center = glm.vec3(*sphere_center)
         self.sphere_radius = sphere_radius
-        self.light_position = light_position
+        self.light_position = glm.vec3(*light_position)
         self.light_intensity = light_intensity
         self.plane_y = plane_y
         self.hdri_image = hdri_image
         self.use_ray_tracing = use_ray_tracing
 
         # Pre-calculate plane normal and plane distance
-        self.plane_normal = (0, 1, 0)
+        self.plane_normal = glm.vec3(0, 1, 0)
         self.plane_d = -self.plane_y
 
     def sample_hdri(self, direction):
-        theta = math.acos(direction[1])
-        phi = math.atan2(direction[2], direction[0])
+        direction = glm.normalize(direction)
+        theta = math.acos(direction.y)
+        phi = math.atan2(direction.z, direction.x)
         phi = phi if phi >= 0 else (2 * math.pi + phi)
         u = phi / (2 * math.pi)
         v = theta / math.pi
         x = int(u * self.hdri_image.shape[1])
         y = int(v * self.hdri_image.shape[0])
         color = self.hdri_image[y % self.hdri_image.shape[0], x % self.hdri_image.shape[1]]
-        return (color[0], color[1], color[2])
+        return tuple(color)
 
     def compute_shadow(self, hit_point):
-        shadow_ray_direction = subtract(self.light_position, hit_point)
-        shadow_ray_direction = normalize(shadow_ray_direction)
+        shadow_ray_direction = glm.normalize(self.light_position - hit_point)
         
-        oc = subtract(hit_point, self.sphere_center)
-        a = dot(shadow_ray_direction, shadow_ray_direction)
-        b = 2.0 * dot(oc, shadow_ray_direction)
-        c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
+        oc = hit_point - self.sphere_center
+        a = glm.dot(shadow_ray_direction, shadow_ray_direction)
+        b = 2.0 * glm.dot(oc, shadow_ray_direction)
+        c = glm.dot(oc, oc) - self.sphere_radius * self.sphere_radius
         discriminant = b * b - 4 * a * c
 
-        shadow_intensity = 1.0  # Luz sin sombra
+        shadow_intensity = 1.0  # Light with no shadow
         if discriminant >= 0:
-            shadow_intensity = 0.3  # Ajusta la intensidad de la sombra si se detecta una intersección
+            shadow_intensity = 0.3  # Adjust shadow intensity if an intersection is detected
 
         return (shadow_intensity, shadow_intensity, shadow_intensity)
 
     def compute_lighting(self, hit_point, normal):
-        light_direction = subtract(self.light_position, hit_point)
-        light_direction = normalize(light_direction)
-        diff = max(dot(normal, light_direction), 0)
+        light_direction = glm.normalize(self.light_position - hit_point)
+        diff = max(glm.dot(normal, light_direction), 0)
         color = (diff * self.light_intensity, diff * self.light_intensity, diff * self.light_intensity)
         return color
 
@@ -75,45 +59,49 @@ class Renderer:
             for x in range(width):
                 px = (x / width) * 2 - 1
                 py = 1 - (y / height) * 2
-                ray_direction = normalize((px, py, -1))
+                ray_direction = glm.normalize(glm.vec3(px, py, -1))
 
                 if not self.use_ray_tracing:
-                    oc = subtract(self.camera_position, self.sphere_center)
-                    a = dot(ray_direction, ray_direction)
-                    b = 2.0 * dot(oc, ray_direction)
-                    c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
+                    oc = self.camera_position - self.sphere_center
+                    a = glm.dot(ray_direction, ray_direction)
+                    b = 2.0 * glm.dot(oc, ray_direction)
+                    c = glm.dot(oc, oc) - self.sphere_radius * self.sphere_radius
                     discriminant = b * b - 4 * a * c
 
-                    denom = dot(ray_direction, self.plane_normal)
+                    denom = glm.dot(ray_direction, self.plane_normal)
 
                     if discriminant >= 0:
                         t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
                         if t_sphere > 0:
-                            color = (1.0, 0.0, 0.0)  # Rojo sólido para la esfera
+                            color = glm.vec3(1.0, 0.0, 0.0)  # Solid red for the sphere
+                            color = glm.clamp(color, 0.0, 1.0)
                             color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                             image.setPixel(x, y, qRgb(*color))
                             continue
 
                     if abs(denom) > 1e-6:
-                        t_plane = -(dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
+                        t_plane = -(glm.dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
                         if t_plane > 0:
-                            color = (0.5, 0.5, 0.5)  # Gris sólido para el piso
+                            color = glm.vec3(0.5, 0.5, 0.5)  # Solid gray for the plane
+                            color = glm.clamp(color, 0.0, 1.0)
                             color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                             image.setPixel(x, y, qRgb(*color))
                             continue
 
                     color = self.sample_hdri(ray_direction)
+                    color = glm.vec3(*color)
+                    color = glm.clamp(color, 0.0, 1.0)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
 
                 else:
-                    oc = subtract(self.camera_position, self.sphere_center)
-                    a = dot(ray_direction, ray_direction)
-                    b = 2.0 * dot(oc, ray_direction)
-                    c = dot(oc, oc) - self.sphere_radius * self.sphere_radius
+                    oc = self.camera_position - self.sphere_center
+                    a = glm.dot(ray_direction, ray_direction)
+                    b = 2.0 * glm.dot(oc, ray_direction)
+                    c = glm.dot(oc, oc) - self.sphere_radius * self.sphere_radius
                     discriminant = b * b - 4 * a * c
 
-                    denom = dot(ray_direction, self.plane_normal)
+                    denom = glm.dot(ray_direction, self.plane_normal)
 
                     ray_count += 1
 
@@ -124,29 +112,34 @@ class Renderer:
                         t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
 
                     if abs(denom) > 1e-6:
-                        t_plane = -(dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
+                        t_plane = -(glm.dot(self.camera_position, self.plane_normal) + self.plane_d) / denom
 
                     if t_plane > 0 and (t_plane < t_sphere or t_sphere == float('inf')):
-                        plane_hit_point = add(self.camera_position, multiply(ray_direction, t_plane))
+                        plane_hit_point = self.camera_position + ray_direction * t_plane
                         shadow_color = self.compute_shadow(plane_hit_point)
-                        color = (0.5, 0.5, 0.5)  # Color del piso
-                        color = tuple(int(min(max(c * 255, 0), 255)) for c in add(shadow_color, color))
+                        color = glm.vec3(0.5, 0.5, 0.5)  # Plane color
+                        shadow_color = glm.vec3(*shadow_color)
+                        color = glm.clamp(color + shadow_color, 0.0, 1.0)
+                        color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                         image.setPixel(x, y, qRgb(*color))
                     elif t_sphere < float('inf'):
-                        hit_point = add(self.camera_position, multiply(ray_direction, t_sphere))
-                        normal = normalize(subtract(hit_point, self.sphere_center))
-                        reflection_direction = subtract(ray_direction, multiply(normal, 2 * dot(ray_direction, normal)))
+                        hit_point = self.camera_position + ray_direction * t_sphere
+                        normal = glm.normalize(hit_point - self.sphere_center)
+                        reflection_direction = glm.normalize(ray_direction - normal * 2 * glm.dot(ray_direction, normal))
                         reflection_color = self.sample_hdri(reflection_direction)
                         color = self.compute_lighting(hit_point, normal)
-                        metallic_color = (1.0, 0.0, 0.0)  # Rojo metálico
-                        reflection_intensity = 0.5  # Ajustar la intensidad de la reflexión
-                        color = add(multiply(metallic_color, 1 - reflection_intensity), multiply(reflection_color, reflection_intensity))
-                        color = multiply(color, 1.2)
+                        metallic_color = glm.vec3(1.0, 0.0, 0.0)  # Metallic red
+                        reflection_intensity = 0.5  # Adjust reflection intensity
+                        color = (1 - reflection_intensity) * metallic_color + reflection_intensity * glm.vec3(*reflection_color)
+                        color *= 1.2
+                        color = glm.clamp(color, 0.0, 1.0)
                         color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                         image.setPixel(x, y, qRgb(*color))
                     else:
                         color = self.sample_hdri(ray_direction)
-                        color = multiply(color, 1.2)
+                        color = glm.vec3(*color)
+                        color *= 1.2
+                        color = glm.clamp(color, 0.0, 1.0)
                         color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                         image.setPixel(x, y, qRgb(*color))
 
