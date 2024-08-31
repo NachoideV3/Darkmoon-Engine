@@ -81,6 +81,7 @@ class Renderer:
         return color
 
     def render_scene(self, width, height):
+        aspect_ratio = width / height
         if not self.scene_has_changed():
             return self.last_image, self.ray_count
 
@@ -91,7 +92,7 @@ class Renderer:
             for x in range(width):
                 px = (x / width) * 2 - 1
                 py = 1 - (y / height) * 2
-                ray_direction = glm.normalize(glm.vec3(px, py, -1))
+                ray_direction = glm.normalize(glm.vec3(px * aspect_ratio, py, -1))
 
                 if not self.use_ray_tracing:
                     oc = self.camera_position - self.sphere_center
