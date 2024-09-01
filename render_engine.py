@@ -133,9 +133,8 @@ class Renderer:
                             image.setPixel(x, y, qRgb(*color))
                             continue
 
-                    color = self.sample_hdri(ray_direction)
-                    color = glm.vec3(*color)
-                    color = glm.clamp(color, 0.0, 1.0)
+                    # Render HDRI as black in simple mode
+                    color = glm.vec3(0.0, 0.0, 0.0)
                     color = tuple(int(min(max(c * 255, 0), 255)) for c in color)
                     image.setPixel(x, y, qRgb(*color))
 
