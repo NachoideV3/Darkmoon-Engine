@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QPushButton, QVBo
 from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QImage, QPixmap
 from loading import LoadScreen
-from render_engine import Renderer  # Importar Renderer
+from render_engine import Renderer
 from ImageLoader import ImageLoader
 
 class RayTracingWindow(QMainWindow):
