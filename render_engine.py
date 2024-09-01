@@ -60,7 +60,6 @@ class Renderer:
 
     def compute_shadow(self, hit_point):
         shadow_ray_direction = glm.normalize(self.light_position - hit_point)
-        
         oc = hit_point - self.sphere_center
         a = glm.dot(shadow_ray_direction, shadow_ray_direction)
         b = 2.0 * glm.dot(oc, shadow_ray_direction)
@@ -69,15 +68,29 @@ class Renderer:
 
         shadow_intensity = 1.0
         if discriminant >= 0:
-            shadow_intensity = 0.3
-
+            t_sphere = (-b - math.sqrt(discriminant)) / (2.0 * a)
+            if t_sphere > 0:
+                shadow_intensity = 0.3
         return (shadow_intensity, shadow_intensity, shadow_intensity)
 
     def compute_lighting(self, hit_point, normal):
         light_direction = glm.normalize(self.light_position - hit_point)
-        diff = max(glm.dot(normal, light_direction), 0)
-        color = (diff * self.light_intensity, diff * self.light_intensity, diff * self.light_intensity)
-        return color
+        diffuse = max(glm.dot(normal, light_direction), 0)
+        
+        view_direction = glm.normalize(self.camera_position - hit_point)
+        reflection_direction = glm.reflect(-light_direction, normal)
+        specular = pow(max(glm.dot(view_direction, reflection_direction), 0), 32) # Phong specular exponent
+
+        ambient_intensity = 0.1
+        diffuse_intensity = self.light_intensity * diffuse
+        specular_intensity = self.light_intensity * specular
+        
+        ambient_color = glm.vec3(0.1, 0.1, 0.1)
+        diffuse_color = glm.vec3(1.0, 1.0, 1.0)
+        specular_color = glm.vec3(1.0, 1.0, 1.0)
+
+        color = ambient_intensity * ambient_color + diffuse_intensity * diffuse_color + specular_intensity * specular_color
+        return glm.clamp(color, 0.0, 1.0)
 
     def render_scene(self, width, height):
         aspect_ratio = width / height
